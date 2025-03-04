@@ -2,6 +2,8 @@ import os
 import re
 import requests
 import shutil
+import zipfile
+import io
 from bs4 import BeautifulSoup
 
 # ===================== Scraping Functions =====================
@@ -117,40 +119,74 @@ def parse_github_url(url):
         return owner, repo
     return None, None
 
-def download_dependency_file(owner, repo, filename, folder):
+def download_maven_project(owner, repo, project_folder):
     """
-    Attempts to download a dependency file (pom.xml, build.gradle, or package.json) 
-    from the repository by trying branch 'master' then 'main'. If found, saves it 
-    in 'folder' with the naming convention: {repo}-{filename}.
+    Checks if the repository contains a pom.xml (indicating a Maven project) and if so,
+    downloads the entire repository as a ZIP file, extracting it into project_folder.
     """
     for branch in ["master", "main"]:
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{filename}"
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/pom.xml"
         r = requests.get(raw_url)
         if r.status_code == 200 and r.text.strip():
-            file_path = os.path.join(folder, f"{repo}-{filename}")
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(r.text)
-            print(f"Downloaded {filename} from {owner}/{repo} (branch: {branch})")
-            return True
-    print(f"Could not find {filename} for {owner}/{repo}")
+            print(f"Detected Maven project for {owner}/{repo} on branch {branch}")
+            zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
+            r_zip = requests.get(zip_url)
+            if r_zip.status_code == 200:
+                with zipfile.ZipFile(io.BytesIO(r_zip.content)) as z:
+                    z.extractall(project_folder)
+                print(f"Downloaded full Maven project for {owner}/{repo} from branch {branch}")
+                return True
+            else:
+                print(f"Failed to download ZIP for {owner}/{repo} from branch {branch}")
     return False
 
-def download_java_dependency_files(owner, repo, folder):
+def download_js_project(owner, repo, project_folder):
     """
-    Attempts to download pom.xml and build.gradle for Java projects. If pom.xml is not found,
-    attempts to download build.gradle.
+    Attempts to download a dependency JSON file for a JavaScript project.
+    First, it tries to download 'package.json'. If that fails, it scrapes the repository's
+    file list for any JSON file (ignoring package-lock.json) and downloads it as package.json.
     """
-    if not download_dependency_file(owner, repo, "pom.xml", folder):
-        # If pom.xml is not found, try build.gradle
-        download_dependency_file(owner, repo, "build.gradle", folder)
+    # Try direct download of package.json
+    for branch in ["master", "main"]:
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/package.json"
+        r = requests.get(raw_url)
+        if r.status_code == 200 and r.text.strip():
+            file_path = os.path.join(project_folder, "package.json")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(r.text)
+            print(f"Downloaded package.json from {owner}/{repo} (branch: {branch})")
+            return True
+
+    # If not found, scrape the repository page for any JSON file (excluding package-lock.json)
+    for branch in ["master", "main"]:
+        tree_url = f"https://github.com/{owner}/{repo}/tree/{branch}"
+        r_page = requests.get(tree_url)
+        if r_page.status_code == 200:
+            soup = BeautifulSoup(r_page.text, "html.parser")
+            links = soup.find_all("a", href=True)
+            for a in links:
+                href = a['href']
+                if f"/{branch}/" in href and href.endswith(".json"):
+                    filename = href.split("/")[-1]
+                    if filename.lower() == "package-lock.json":
+                        continue
+                    raw_url_candidate = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{filename}"
+                    r_candidate = requests.get(raw_url_candidate)
+                    if r_candidate.status_code == 200 and r_candidate.text.strip():
+                        file_path = os.path.join(project_folder, "package.json")
+                        with open(file_path, "w", encoding="utf-8") as f:
+                            f.write(r_candidate.text)
+                        print(f"Downloaded {filename} as package.json from {owner}/{repo} (branch: {branch})")
+                        return True
+    return False
 
 # ===================== Main Script =====================
 
 def main():
     # Scrape links from all three sources
-    medium_projects = scrape_medium_top_java_projects()  # returns list of (name, link)
-    itnext_projects = scrape_itnext_top_js_projects()      # returns list of (name, link)
-    github_md_links = scrape_github_markdown_js()           # returns list of links
+    medium_projects = scrape_medium_top_java_projects()  # list of (name, link)
+    itnext_projects = scrape_itnext_top_js_projects()      # list of (name, link)
+    github_md_links = scrape_github_markdown_js()           # list of links
 
     # Combine all links (only use the URL part) and remove duplicates
     all_links = []
@@ -164,29 +200,34 @@ def main():
         if link not in all_links:
             all_links.append(link)
 
-    for link in all_links:
-        print(link)
-    
     print("Total unique GitHub project links found:", len(all_links))
     
-    # Create a fresh folder named 'dep-files'
-    folder_name = "dep-files"
-    if os.path.exists(folder_name):
-        shutil.rmtree(folder_name)
-    os.makedirs(folder_name, exist_ok=True)
+    # Create a fresh base folder named 'dep-files'
+    base_folder = "dep-files"
+    if os.path.exists(base_folder):
+        shutil.rmtree(base_folder)
+    os.makedirs(base_folder, exist_ok=True)
     
-    # For each repository, attempt to download pom.xml, build.gradle (for Java), and package.json
+    # For each repository, create a project folder and process based on project type
     for link in all_links:
         owner, repo = parse_github_url(link)
         if not owner or not repo:
             print(f"Could not parse URL: {link}")
             continue
         
-        # Attempt to download Java project files (pom.xml and build.gradle)
-        download_java_dependency_files(owner, repo, folder_name)
+        # Create a folder for the individual project
+        project_folder = os.path.join(base_folder, repo)
+        os.makedirs(project_folder, exist_ok=True)
         
-        # Attempt to download package.json (Node.js file)
-        download_dependency_file(owner, repo, "package.json", folder_name)
+        # For Maven projects (detected via pom.xml), download the entire repository
+        if download_maven_project(owner, repo, project_folder):
+            continue  # Skip further processing if full Maven project downloaded
+        
+        # For JavaScript projects, download the dependency JSON file and save as package.json
+        if download_js_project(owner, repo, project_folder):
+            continue
+        
+        print(f"No dependency file found for {owner}/{repo}")
     
     print("Download complete. Check the 'dep-files' folder for results.")
 
