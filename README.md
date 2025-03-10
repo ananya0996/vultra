@@ -7,3 +7,9 @@ sudo apt install python3
 sudo apt install maven
 sudo apt install npm
 ```
+
+## Build
+To build, run:
+```bash
+python -m venv venv
+```
