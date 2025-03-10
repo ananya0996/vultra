@@ -1,9 +1,13 @@
+
 import os
 import subprocess
 import json
 
+def load_config(config_path="config.json"):
+    with open(config_path, "r") as file:
+        return json.load(file)
 
-def parse_dependency_tree(dependencies_json):
+def parse_dependency_tree_maven(dependencies_json):
     dependency_set = set()
     stack = [dependencies_json]
 
@@ -15,22 +19,20 @@ def parse_dependency_tree(dependencies_json):
     return dependency_set
 
 
-#takes the file path and gives us dependency tree in JSON format
+# takes the file path and gives us dependency tree in JSON format
 def get_maven_dependencies(pom_path):
-    # does pom_xml path exist?
     if not os.path.isfile(pom_path):
         print(json.dumps({"error": f"{pom_path} does not exist."}))
         return
-    #creating a path to store the the final output
+
     project_dir = os.path.dirname(pom_path)
 
-    # validate the path
     if not os.path.isdir(project_dir):
         print(json.dumps({"error": f"The directory {project_dir} does not exist."}))
         return
 
     print(f"Processing: {pom_path}")
-    #output will be written to dep-tree.json within the repo
+    # output will be written to dep-tree.json within the repo
     json_output_file = os.path.join(project_dir, "dep-tree.json")
 
     try:
@@ -53,7 +55,7 @@ def get_maven_dependencies(pom_path):
             if os.path.exists(json_output_file):
                 with open(json_output_file, "r", encoding="utf-8") as f:
                     dependencies_json = json.load(f)
-                    dependencies_list = parse_dependency_tree(dependencies_json)
+                    dependencies_list = parse_dependency_tree_maven(dependencies_json)
                     print(dependencies_list)
                 # print(json.dumps(dependencies_json, indent=4))
             else:
@@ -66,10 +68,10 @@ def get_maven_dependencies(pom_path):
     except Exception as e:
         print(json.dumps({"error": "Exception occurred.", "details": str(e)}))
 
-if __name__ == '__main__':
-    pom_files = [
-        "C:/Users/VICTUS/Documents/SE_Project/vultra/pom.xml"
-    ]
 
-    for pom_file in pom_files:
+if __name__ == '__main__':
+    config = load_config()
+
+    for pom_file in config["pom_files"]:
         get_maven_dependencies(pom_file)
+
