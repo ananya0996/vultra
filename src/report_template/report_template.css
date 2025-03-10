@@ -1,0 +1,58 @@
+body {
+    background-color: #000000;
+    color: #ffffff;
+    margin: 2rem;
+}
+
+.vulnerability-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Courier New', monospace;
+    margin: 20px 0;
+}
+
+.vulnerability-table th,
+.vulnerability-table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #00ff00;
+}
+
+.vulnerability-table th {
+    background-color: #1a1a1a;
+    color: #00ff00;
+    border-bottom: 2px solid #00ff00;
+}
+
+.parent-package {
+    color: #808080;
+    font-style: italic;
+}
+
+.vulnerable-package {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.severity-HIGH { 
+    background-color: #330000; 
+    color: #ff0000;
+    font-weight: bold;
+}
+
+.severity-MED { 
+    background-color: #333300; 
+    color: #ffff00;
+}
+
+.severity-LOW { 
+    background-color: #003300; 
+    color: #00ff00;
+}
+
+h2 {
+    color: #00ff00;
+    border-bottom: 2px solid #00ff00;
+    padding-bottom: 0.5rem;
+    font-family: 'Courier New', monospace;
+}
