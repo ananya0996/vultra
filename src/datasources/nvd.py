@@ -1,0 +1,2 @@
+class NVDHandler(DataSource):
+    pass

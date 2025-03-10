@@ -9,7 +9,14 @@ sudo apt install maven
 sudo apt install npm
 ```
 
-## To run,
+## Build
+To build, run:
+```bash
+python -m venv venv
+```
+
+## Run
+To run, use:
 ```bash
 python3 src/main.py --framework <mvn/npm> --file <path/to/manifest/file>
 ```
