@@ -17,7 +17,7 @@ jobs:
     
     - name: Run Vultra Scan
       run: | # Update framework, file
-        docker run --name vultra-container vultra-scan:latest python3 main.py --framework mvn --file pom.xml
+        docker run --name vultra-container vultra-scan:latest python3 src/main.py --framework mvn --file pom.xml
 
     - name: Copy HTML Report from Container
       run: |
