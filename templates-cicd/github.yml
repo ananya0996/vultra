@@ -1,0 +1,33 @@
+name: Daily Vulnerability Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs at 00:00 UTC every day
+
+jobs:
+  vultra_scan:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Pull Docker Image
+      run: docker pull ghcr.io/ananya0996/vultra/vultra-scan:latest
+    
+    - name: Run Vultra Scan
+      run: | # Update framework, file
+        docker run --name vultra-container vultra-scan:latest python3 main.py --framework mvn --file pom.xml
+
+    - name: Copy HTML Report from Container
+      run: |
+        docker cp vultra-container:/app/scan-results/vulnerability_status_report.html .
+
+    - name: Upload HTML Report as Artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: vultra-scan-report
+        path: vulnerability_status_report.html
+    
+    - name: Handle Scan Results
+        echo "Scan complete. Report available at: https://github.com/${{ github.repository }}/actions/runs/$GITHUB_RUN_ID"
