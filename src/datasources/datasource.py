@@ -6,5 +6,5 @@ class BaseDataSource:
         self.next_handler = handler
         return handler
 
-    def handle(self, library_name, version):
+    def handle(self, package_name, package_version, ecosystem):
         raise NotImplementedError("This method should be overridden by subclasses")
