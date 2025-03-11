@@ -8,8 +8,15 @@ sudo apt install maven
 sudo apt install npm
 ```
 
-## Build
-To build, run:
+## Build & Run
+To build:
 ```bash
 python -m venv venv
+source venv/bin/activate
+```
+To run:
+```bash
+export GITHUB_ACCESS_TOKEN=<your-access-token>
+python3 src/main.py  --framework <your-framework> \
+--file <path/to/dependency/file>
 ```
