@@ -1,116 +1,71 @@
 import os
-import re
 import requests
+import time
+import re
 import shutil
 import zipfile
 import io
 from bs4 import BeautifulSoup
 
-# ===================== Scraping Functions =====================
+# -------------------- GitHub API Setup & Repo Collection (Code 1) --------------------
 
-def scrape_medium_top_java_projects():
-    """
-    Scrapes the Medium article "50 Top Java Projects on GitHub".
-    """
-    url = "https://medium.com/issuehunt/50-top-java-projects-on-github-adbfe9f67dbc"
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36")
+# Read GitHub token from the environment variable.
+ACCESS_TOKEN = os.environ.get("GITHUB_ACCESS_TOKEN", "")
+headers = {'Authorization': f'token {ACCESS_TOKEN}'} if ACCESS_TOKEN else {}
+
+def search_repos(query, page=1, per_page=100):
+    url = 'https://api.github.com/search/repositories'
+    params = {
+        'q': query,
+        'sort': 'stars',
+        'order': 'desc',
+        'page': page,
+        'per_page': per_page
     }
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
-        print(f"Error: Received status code {response.status_code} for Medium page.")
+        print(f"Error searching repos: {response.status_code}")
         return []
-    
-    soup = BeautifulSoup(response.text, "html.parser")
-    content = soup.find("article")
-    if not content:
-        content = soup
+    return response.json().get('items', [])
 
-    projects = []
-    for a in content.find_all("a", href=True):
-        href = a['href']
-        if "github.com" in href and "/search" not in href:
-            project_name = a.get_text(strip=True)
-            if project_name and (project_name, href) not in projects:
-                projects.append((project_name, href))
-    return projects
-
-def scrape_itnext_top_js_projects():
-    """
-    Scrapes the ITNEXT article for top JavaScript projects.
-    """
-    url = "https://itnext.io/top-33-javascript-projects-on-github-november-2021-d1e2971dfba5"
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36")
-    }
-    response = requests.get(url, headers=headers)
+def repo_has_file_with_extension(repo, extension):
+    # Use the repository's default branch (commonly main or master)
+    default_branch = repo.get("default_branch", "main")
+    url = f'https://api.github.com/repos/{repo["full_name"]}/contents'
+    response = requests.get(url, headers=headers, params={"ref": default_branch})
     if response.status_code != 200:
-        print(f"Error: Received status code {response.status_code} for ITNEXT page.")
-        return []
-    
-    soup = BeautifulSoup(response.text, "html.parser")
-    content = soup.find("article")
-    if not content:
-        content = soup
+        return False
+    for item in response.json():
+        if item['type'] == 'file' and item['name'].endswith(extension):
+            return True
+    return False
 
-    projects = []
-    for a in content.find_all("a", href=True):
-        href = a['href']
-        if "github.com" in href and "/search" not in href:
-            project_name = a.get_text(strip=True)
-            if project_name and (project_name, href) not in projects:
-                projects.append((project_name, href))
-    return projects
+def collect_repos(query, extension, max_repos):
+    repos_list = []
+    page = 1
+    while len(repos_list) < max_repos:
+        print(f"Fetching page {page} for query '{query}'")
+        repos = search_repos(query, page=page)
+        if not repos:
+            print("No more repos found.")
+            break
+        for repo in repos:
+            if repo_has_file_with_extension(repo, extension):
+                repos_list.append(repo['html_url'])
+                print(f"Found repo {len(repos_list)}: {repo['html_url']}")
+                if len(repos_list) >= max_repos:
+                    break
+        page += 1
+        time.sleep(1)  # Sleep to avoid rate limiting
+    return repos_list
 
-def scrape_github_markdown_js():
-    """
-    Scrapes the GitHub markdown file (JavaScript.md) containing the top 100 JavaScript
-    projects from the repository and returns a list of unique GitHub project links.
-    """
-    url = "https://github.com/EvanLi/Github-Ranking/blob/master/Top100/JavaScript.md"
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36")
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"Failed to retrieve GitHub markdown file. Status code: {response.status_code}")
-        return []
-    
-    soup = BeautifulSoup(response.text, "html.parser")
-    table = soup.find("table")
-    project_links = []
-    
-    if table:
-        rows = table.find_all("tr")
-        # Skip header row
-        for row in rows[1:]:
-            a_tag = row.find("a", href=True)
-            if a_tag:
-                href = a_tag["href"]
-                if href.startswith("https://github.com") and "/search" not in href:
-                    project_links.append(href)
-    else:
-        for a_tag in soup.find_all("a", href=True):
-            href = a_tag["href"]
-            if href.startswith("https://github.com") and not href.endswith(".md") and "/search" not in href:
-                project_links.append(href)
-    
-    unique_links = list(dict.fromkeys(project_links))
-    return unique_links
-
-# ===================== Utility Functions =====================
+# -------------------- Repository Processing Functions (Code 2) --------------------
 
 def parse_github_url(url):
     """
     Extracts the owner and repository name from a GitHub URL.
     """
-    url = url.split("#")[0].strip()  # Remove fragment identifiers
+    url = url.split("#")[0].strip()  # Remove any fragment identifiers
     pattern = r"github\.com/([^/]+)/([^/]+)"
     match = re.search(pattern, url)
     if match:
@@ -121,8 +76,8 @@ def parse_github_url(url):
 
 def download_maven_project(owner, repo, project_folder):
     """
-    Checks if the repository contains a pom.xml (indicating a Maven project) and if so,
-    downloads the entire repository as a ZIP file, extracting it into project_folder.
+    Detects if the repository is a Maven project (via a pom.xml file) and, if so, downloads
+    the entire repository as a ZIP file, extracting it into the given project_folder.
     """
     for branch in ["master", "main"]:
         raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/pom.xml"
@@ -143,8 +98,8 @@ def download_maven_project(owner, repo, project_folder):
 def download_js_project(owner, repo, project_folder):
     """
     Attempts to download a dependency JSON file for a JavaScript project.
-    First, it tries to download 'package.json'. If that fails, it scrapes the repository's
-    file list for any JSON file (ignoring package-lock.json) and downloads it as package.json.
+    It first tries to download 'package.json'. If that fails, it scrapes the repository's file list
+    for any JSON file (ignoring package-lock.json) and downloads it as package.json.
     """
     # Try direct download of package.json
     for branch in ["master", "main"]:
@@ -157,7 +112,7 @@ def download_js_project(owner, repo, project_folder):
             print(f"Downloaded package.json from {owner}/{repo} (branch: {branch})")
             return True
 
-    # If not found, scrape the repository page for any JSON file (excluding package-lock.json)
+    # If not found, scrape for any JSON file (excluding package-lock.json)
     for branch in ["master", "main"]:
         tree_url = f"https://github.com/{owner}/{repo}/tree/{branch}"
         r_page = requests.get(tree_url)
@@ -180,56 +135,47 @@ def download_js_project(owner, repo, project_folder):
                         return True
     return False
 
-# ===================== Main Script =====================
+# -------------------- Main Script --------------------
 
 def main():
-    # Scrape links from all three sources
-    medium_projects = scrape_medium_top_java_projects()  # list of (name, link)
-    itnext_projects = scrape_itnext_top_js_projects()      # list of (name, link)
-    github_md_links = scrape_github_markdown_js()           # list of links
+    # Collect GitHub repositories using the GitHub API (Code 1)
+    print("Collecting top 50 npm projects with a .json file...")
+    js_repos = collect_repos('topic:JavaScript language:JavaScript', '.json', 50)
+    print("\nCollecting top 50 maven projects with a .xml file...")
+    java_repos = collect_repos('topic:Java language:Java', '.xml', 50)
 
-    # Combine all links (only use the URL part) and remove duplicates
-    all_links = []
-    for _, link in medium_projects:
-        if link not in all_links:
-            all_links.append(link)
-    for _, link in itnext_projects:
-        if link not in all_links:
-            all_links.append(link)
-    for link in github_md_links:
-        if link not in all_links:
-            all_links.append(link)
+    # Combine the repository links and remove duplicates
+    all_links = list(set(js_repos + java_repos))
+    print(f"\nTotal unique GitHub project links collected: {len(all_links)}")
 
-    print("Total unique GitHub project links found:", len(all_links))
-    
-    # Create a fresh base folder named 'dep-files'
-    base_folder = "dep-files"
+    # Create a fresh base folder named 'dep-folder'
+    base_folder = "dep-folder"
     if os.path.exists(base_folder):
         shutil.rmtree(base_folder)
     os.makedirs(base_folder, exist_ok=True)
-    
-    # For each repository, create a project folder and process based on project type
+
+    # Process each repository link
     for link in all_links:
         owner, repo = parse_github_url(link)
         if not owner or not repo:
             print(f"Could not parse URL: {link}")
             continue
         
-        # Create a folder for the individual project
+        # Create an individual folder for the project
         project_folder = os.path.join(base_folder, repo)
         os.makedirs(project_folder, exist_ok=True)
         
-        # For Maven projects (detected via pom.xml), download the entire repository
+        # Attempt to process as a Maven project
         if download_maven_project(owner, repo, project_folder):
-            continue  # Skip further processing if full Maven project downloaded
+            continue  # Maven project downloaded; skip further processing
         
-        # For JavaScript projects, download the dependency JSON file and save as package.json
+        # Otherwise, attempt to process as a JavaScript (npm) project
         if download_js_project(owner, repo, project_folder):
             continue
         
         print(f"No dependency file found for {owner}/{repo}")
     
-    print("Download complete. Check the 'dep-files' folder for results.")
+    print("\nDownload complete. Check the 'dep-folder' folder for results.")
 
 if __name__ == "__main__":
     main()
