@@ -1,15 +1,9 @@
-
-# vulnerability_report.py
 import json
 
-def generate_html_report(json_file, output_html="vulnerability_report.html"):
+def generate_html_report(json_data, output_html="vulnerability_report.html"):
     # Read HTML template
     with open("report_template.html", "r") as template_file:
         html_content = template_file.read()
-
-    # Load JSON data
-    with open(json_file, "r") as f:
-        data = json.load(f)
 
     # Generate table rows
     table_rows = []
@@ -56,42 +50,64 @@ def generate_html_report(json_file, output_html="vulnerability_report.html"):
 
 if __name__ == "__main__":
     # Test data
-    json_input = '''[
+    data = [
         {
-            "s_no": 1,
-            "package_hierarchy": "Package A > Package B > Package C",
-            "vulnerable_versions": ["1.2", "1.2"],
-            "vulnerabilities": [
+            'package_name': 'Package C',
+            'version': '1.5',
+            'paths': [
+                'Package A > Package B', # B imports C v1.5
+                'Package D' # D imports C v1.5
+            ],
+            'vulnerabilities': [
                 {
-                    "vulnerability_id": "CVE-12345",
-                    "vulnerability_type": "SQL Injection",
-                    "severity": "HIGH",
-                    "patched_version": "1.5"
+                    'cve': 'CVE-1234-56789',
+                    'severity': 'MODERATE',
+                    'firstPatchedVersion': '1.9',
+                    'vuln_types': [
+                        'SQL Injection',
+                        'Null Pointer Dereferencing'
+                    ]
                 },
                 {
-                    "vulnerability_id": "CVE-45678",
-                    "vulnerability_type": "Null Pointer Deref",
-                    "severity": "MED",
-                    "patched_version": "1.4"
+                    'cve': 'CVE-9283-28373',
+                    'severity': 'LOW',
+                    'firstPatchedVersion': '1.7',
+                    'vuln_types': [] # CWEs not available
                 }
             ]
         },
         {
-            "s_no": 2,
-            "package_hierarchy": "Package X",
-            "vulnerable_versions": ["4.5"],
-            "vulnerabilities": [
+            'package_name': 'Package X',
+            'version': '5.1',
+            'paths': None, # X is a direct dependency
+            'vulnerabilities': [
                 {
-                    "vulnerability_id": "CVE-54321",
-                    "vulnerability_type": "Hardcoded Credentials",
-                    "severity": "LOW",
-                    "patched_version": "4.9"
-                }
+                    'cve': 'CVE-1234-78787',
+                    'severity': 'HIGH',
+                    'firstPatchedVersion': '6.0',
+                    'vuln_types': [
+                        'Malicious code'
+                    ]
+                },
+            ]
+        },
+        {
+            'package_name': 'Package C',
+            'version': '2.2',
+            'paths': [
+                'Package Z' # Z imports C v2.2
+            ],
+            'vulnerabilities': [
+                {
+                    'cve': 'CVE-1234-56789',
+                    'severity': 'MODERATE',
+                    'firstPatchedVersion': '2.7',
+                    'vuln_types': [
+                        'SQL Injection'
+                    ]
+                },
             ]
         }
-    ]'''
+    ]
 
-    with open("vulnerabilities.json", "w") as f:
-        f.write(json_input)
-
-    generate_html_report("vulnerabilities.json")
+    generate_html_report(data)
