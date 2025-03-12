@@ -2,12 +2,11 @@ import argparse
 import json
 
 # Importing project submodules
-from datasource import DataSource
-from datasource import GHSAHandler
-from datasource import NVDHandler
-import dependency_parser
+from datasources import BaseDataSource
+from datasources import GHSAHandler
+from datasources import NVDHandler
 
-def main():
+def parse_cmd_line_args():
     frameworks = ["mvn", "npm"]
     parser = argparse.ArgumentParser(
         description = "Analyze security vulnerabilities in software projects.")
@@ -16,8 +15,10 @@ def main():
     parser.add_argument("--file", required = True, help = "Path to the"
                     " dependency manifest file (eg: pom.xml for Maven,"
                     " package.json for NPM, etc.)")
-    # TODO: parse arguments
-    # args = parser.parse_args()
+    args = parser.parse_args()
+
+def main():
+    parse_cmd_line_args()
 
     dependencies = []
     if dependencies:
