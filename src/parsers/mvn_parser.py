@@ -2,10 +2,11 @@ import json
 import os
 import subprocess
 
-from dependency_parser import DependencyParser
+from parsers.dependency_parser import DependencyParser
 
 class MvnParser(DependencyParser):
     def get_dependency_tree(self, pom_path):
+        pom_path = os.path.abspath(pom_path)
         if not os.path.isfile(pom_path):
             print(json.dumps({"ERROR": f"{pom_path} does not exist."}))
             return None
@@ -20,7 +21,7 @@ class MvnParser(DependencyParser):
                 [
                     "mvn", "-f", pom_path,
                     "org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree",
-                    f"-DoutputFile={json_filename}",
+                    f"-DoutputFile={json_output_file}",
                     "-DoutputType=json"
                 ],
                 cwd=project_dir,
@@ -56,5 +57,5 @@ class MvnParser(DependencyParser):
             dependency = stack.pop()
             dependency_set.add((f"{dependency['groupId']}.{dependency['artifactId']}", dependency['version']))
             stack.extend(dependency.get('children', []))
-
+        # TODO: Return in a standard dictionary format for each package manager to give client class a uniform interface
         return dependency_set
