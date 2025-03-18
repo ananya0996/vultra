@@ -58,18 +58,20 @@ class NpmParser(DependencyParser):
         os.remove(json_output_file)
         return dependencies_list
     
-    def get_flat_dependency_set(self, dependencies_json):
-        dependency_set = set()
-        stack = [{"name": key, "version": value.get("version", "unknown"), "dependencies": value.get("dependencies", {})}
-                for key, value in dependencies_json.get("dependencies", {}).items()]
+    def get_flat_dependency_set(self, dep_json):
+        result = set()
 
-        while stack:
-            dependency = stack.pop()
-            dependency_set.add((dependency["name"], dependency["version"]))
+        def traverse_dependencies(dependencies, is_direct_dependency):
+            for package_name, package_info in dependencies.items():
+                if 'version' in package_info:
+                    package_version = package_info['version']
+                    package_entry = (package_name, package_version, is_direct_dependency)
+                    result.add(package_entry)
 
-            stack.extend([
-                {"name": key, "version": value.get("version", "unknown"), "dependencies": value.get("dependencies", {})}
-                for key, value in dependency["dependencies"].items()
-            ])
+                if 'dependencies' in package_info:
+                    traverse_dependencies(package_info['dependencies'], False)
 
-        return dependency_set
+        if 'dependencies' in dep_json:
+            traverse_dependencies(dep_json['dependencies'], True)
+
+        return result
