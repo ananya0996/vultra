@@ -1,6 +1,9 @@
 import os
 import subprocess
 import xml.etree.ElementTree as ET
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+import main as vultra
 
 
 def find_base_path(start_path, target_dir):
@@ -28,7 +31,8 @@ def is_parent_pom(pom_path):
         if os.path.basename(directory) == os.path.basename(os.path.dirname(directory)):
             return True
         return False
-    except Exception:
+    except Exception as e:
+        print(f"ERROR: {e}")
         return True
 
 
@@ -50,7 +54,8 @@ def find_all_package_json():
             package_json_path = os.path.join(project_dir, "package.json")
             if os.path.exists(package_json_path):
                 package_paths.append((project_name, package_json_path, "npm"))
-    except Exception:
+    except Exception as e:
+        print(f"ERROR: {e}")
         return []
     return package_paths
 
@@ -90,7 +95,7 @@ def call_main_py(framework, file_path):
 
     try:
         result = subprocess.run(
-            ["python", main_py_path, "--framework", framework, "--file", file_path],
+            ["python3", main_py_path, "--framework", framework, "--file", file_path],
             capture_output=True,
             text=True,
             check=True
@@ -118,13 +123,31 @@ def run_dependency_analysis():
         call_main_py(framework, file_path)
 
 
-def main():
+def collect_filepaths():
     npm_results = find_all_package_json()
     mvn_results = find_parent_pom_xml()
-    print("NPM Results:", npm_results)
-    print("Maven Results:", mvn_results)
+
+    return npm_results, mvn_results
 
 
 if __name__ == "__main__":
-    main()
-    run_dependency_analysis()
+    npm_files, mvn_files = collect_filepaths()
+    original_directory = os.getcwd()
+
+    results = []
+    
+    for tup in npm_files:
+        directory_path = os.path.dirname(tup[1])
+        os.chdir(directory_path)
+        results[tup[0]] = {}
+        print(f"Project name: {tup[0]}, framework: {tup[2]}")
+        results[tup[0]]["stats"] = vultra.main(["--framework", tup[2], "--file", tup[1]])
+        #results[tup[9]]["exec_time"] = 
+        os.chdir(original_directory)
+
+    for tup in mvn_files:
+        directory_path = os.path.dirname(tup[1])
+        os.chdir(directory_path)
+        print(f"Project name: {tup[0]}, framework: {tup[2]}")
+        results = vultra.main(["--framework", tup[2], "--file", tup[1]])
+        os.chdir(original_directory)
