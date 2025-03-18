@@ -9,6 +9,7 @@ from datasources.ghsa import GHSAHandler
 from datasources.nvd import NVDHandler
 from parsers.mvn_parser import MvnParser
 from parsers.npm_parser import NpmParser
+from report import generate_html_report
 
 def parse_cmd_line_args(args = None):
     frameworks = ["mvn", "npm"]
@@ -81,6 +82,7 @@ def main(args = None):
                 direct_vulnerabilities += 1
             else:
                 transitive_vulnerabilities += 1
+                paths = parser.find_paths_in_tree(dependency_tree, artifact_id, version)
 
             formatted_vulns = {
                 "package_name": artifact_id,
@@ -105,19 +107,17 @@ def main(args = None):
 
             vulnerabilities_list.append(formatted_vulns)
 
-    output_path = os.path.join(os.getcwd(), "vulnerabilities.json")
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(vulnerabilities_list, f, indent=4)
-
     # Prepare final JSON response
     final_result = {
         "direct_dependencies": direct_dependencies,
         "transitive_dependencies": transitive_dependencies,
         "direct_vulnerabilities": direct_vulnerabilities,
         "transitive_vulnerabilities": transitive_vulnerabilities,
-        "vuln_type_counts": dict(vuln_type_counts),  
-        "vulnerabilities_output_path": output_path
+        "vuln_type_counts": dict(vuln_type_counts)
     }
+
+    # Uncomment this line to generate the HTML report of vulnerability analysis
+    # generate_html_report(vulnerabilities_list)
 
     # Return the final JSON object
     return final_result
