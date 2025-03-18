@@ -122,6 +122,7 @@ class GHSAHandler(BaseDataSource):
                         "vuln_status": {
                             "cve_id": cve_id,
                             "cwes": cwes,
+                            "severity": node["severity"],
                             "firstPatchedVersion": node["firstPatchedVersion"].get("identifier") if node.get("firstPatchedVersion") else "Unknown",
                             "publishedAt": node["advisory"].get("publishedAt", "Unknown")
                         }
