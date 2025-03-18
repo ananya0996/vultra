@@ -14,9 +14,10 @@ class MvnParser(DependencyParser):
         project_dir = os.path.dirname(pom_path)
         json_filename = "dep-tree.json"
         json_output_file = os.path.join(project_dir, json_filename)
+        dependencies_json = None  # Initialize variable outside the try block
 
         try:
-            # Run the  Maven command to get the dependency tree
+            # Run the Maven command to get the dependency tree
             result = subprocess.run(
                 [
                     "mvn", "-f", pom_path,
@@ -35,7 +36,6 @@ class MvnParser(DependencyParser):
                 if os.path.exists(json_output_file):
                     with open(json_output_file, "r", encoding="utf-8") as f:
                         dependencies_json = json.load(f)
-                        dependencies_list = self.get_flat_dependency_set(dependencies_json)
                 else:
                     print(json.dumps({f"ERROR": "{json_filename} output file was not created by Maven."}))
             else:
@@ -46,8 +46,11 @@ class MvnParser(DependencyParser):
         except Exception as e:
             print(json.dumps({"ERROR": "Exception occurred.", "details": str(e)}))
         
-        os.remove(json_output_file)
-        return dependencies_list
+        # Clean up the file if it exists
+        if os.path.exists(json_output_file):
+            os.remove(json_output_file)
+            
+        return dependencies_json
     
     def get_flat_dependency_set(self, dependencies_json):
         dependency_set = set()
@@ -55,7 +58,7 @@ class MvnParser(DependencyParser):
 
         while stack:
             dependency = stack.pop()
-            dependency_set.add((f"{dependency['groupId']}.{dependency['artifactId']}", dependency['version']))
+            dependency_set.add((f"{dependency['groupId']}:{dependency['artifactId']}", dependency['version']))
             stack.extend(dependency.get('children', []))
         # TODO: Return in a standard dictionary format for each package manager to give client class a uniform interface
         return dependency_set
