@@ -2,6 +2,7 @@ import argparse
 import sys
 import os
 import json
+from collections import defaultdict
 
 # Importing project submodules
 from datasources.ghsa import GHSAHandler
@@ -53,26 +54,47 @@ def main(args = None):
         print("ERROR: No dependencies found or error in parsing.")
         sys.exit(1)
     
-    vulnerabilities_list = []
-
     handler = init_handler_chain()
+    vulnerabilities_list = []
+    paths = []
+    direct_dependencies = 0
+    transitive_dependencies = 0
+    direct_vulnerabilities = 0
+    transitive_vulnerabilities = 0
+    vuln_type_counts = defaultdict(int)  
 
     for dependency in unique_dependencies:
-        # Access tuple elements by index, not by key
-        artifact_id = dependency[0]  # This is the "group.artifact"
-        version = dependency[1]     # This is the "version"
-        # inser vuln_type here, change to direct/trans from true/false
+
+        artifact_id = dependency[0] 
+        version = dependency[1]     
+        is_direct_dependency = dependency[2]
+
+        # Update dependency counters
+        if is_direct_dependency:
+            direct_dependencies += 1
+        else:
+            transitive_dependencies += 1
+
         result = handler.handle(artifact_id, version, args["framework"])
         if result:
+            if is_direct_dependency:
+                direct_vulnerabilities += 1
+            else:
+                transitive_vulnerabilities += 1
+
             formatted_vulns = {
                 "package_name": artifact_id,
                 "version": version,
-                "paths": [],  # Placeholder for dependency paths (modify if needed)
+                "paths": paths,  # Placeholder for dependency paths (modify if needed)
                 "vulnerabilities": []
             }
 
             for vuln in result:
                 vuln_types = [cwe["cwe_name"] for cwe in vuln["vuln_status"].get("cwes", [])] or "N/A"
+
+                # Update vuln_type frequency
+                for vt in vuln_types:
+                    vuln_type_counts[vt] += 1
                 
                 formatted_vulns["vulnerabilities"].append({
                     "cve": vuln["vuln_status"]["cve_id"],
@@ -87,7 +109,19 @@ def main(args = None):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(vulnerabilities_list, f, indent=4)
 
-    print(f"Vulnerability data saved to {output_path}")
+    # Prepare final JSON response
+    final_result = {
+        "direct_dependencies": direct_dependencies,
+        "transitive_dependencies": transitive_dependencies,
+        "direct_vulnerabilities": direct_vulnerabilities,
+        "transitive_vulnerabilities": transitive_vulnerabilities,
+        "vuln_type_counts": dict(vuln_type_counts),  
+        "vulnerabilities_output_path": output_path
+    }
+
+    # Return the final JSON object
+    return final_result
+    
 
 if __name__ == "__main__":
     main()
