@@ -1,3 +1,5 @@
+import os
+
 from datasource import BaseDataSource
 import subprocess
 import requests
@@ -7,14 +9,14 @@ from packaging.version import Version, parse
 
 
 class NVDHandler(BaseDataSource):
-    package_manager=["mvn","npm"]
-    def handle(self, lib_version, package,package_manager):
+    package_manager = ["mvn", "npm"]
+
+    def handle(self, lib_version, package, package_manager):
         if self.is_rc_version(lib_version):
 
-            return self.direct_update_for_rc_version(package,lib_version,package_manager,"")
+            return self.direct_update_for_rc_version(package, lib_version, package_manager, "")
         else:
             return self.get_cpe_number_and_check_vulnerability(package, lib_version)
-
 
     def is_rc_version(self, lib_version):
         """Detect pre-release versions (rc, beta, SNAPSHOT, etc.)"""
@@ -25,17 +27,15 @@ class NVDHandler(BaseDataSource):
         ))
 
 
+    def direct_update_for_rc_version(self, package_name, package_version, package_manager, groupId):
 
-    # --- Fetch Latest Stable Version (npm + Maven) ---
-    def direct_update_for_rc_version(self,package_name, package_version, package_manager, groupId):
-        """Fetch latest stable version for npm or Maven packages"""
         if self.is_rc_version(package_version):
             try:
                 if package_manager == "npm":
-                    # NPM logic (unchanged)
+
                     result = subprocess.run(
                         [r"C:\Program Files\nodejs\npm.cmd", "show", package_name, "versions", "--json"],
-                        capture_output=True, text=True, check=True
+                        capture_output=True, text=True, check=True,shell=True
                     )
                     versions = json.loads(result.stdout)
                     stable_versions = [v for v in versions if not self.is_rc_version(v)]
@@ -54,8 +54,6 @@ class NVDHandler(BaseDataSource):
                             return f"Update to {latest_version}" if latest_version else "No stable version found."
 
 
-
-
                 else:
                     return f"Unsupported package manager: {package_manager}"
 
@@ -64,7 +62,7 @@ class NVDHandler(BaseDataSource):
         else:
             return f"{package_name} ({package_version}) is stable."
 
-    def get_valid_group_id(self,artifact_id):
+    def get_valid_group_id(self, artifact_id):
         """Fetch valid group IDs for a given artifact."""
         url = f"https://search.maven.org/solrsearch/select?q=a:{artifact_id}&rows=10&wt=json"
         response = requests.get(url)
@@ -75,40 +73,52 @@ class NVDHandler(BaseDataSource):
             return list(group_ids)
         return None
 
-    # Function to get the CPE number of a vulnerable package and check the base score
-    def get_cpe_number_and_check_vulnerability(self,package_name, package_version):
-        status = "not vulnerable"
+    def is_valid_cve(self, cpe_entry, target_product):
+        criteria = cpe_entry.get("criteria", "")
+        parts = criteria.split(":")  # CPE format: cpe:2.3:a:<vendor>:<product>:...
+        if len(parts) < 4 or parts[2] != "a":
+            return False
+
+        product_name = parts[3].lower()
+
+        # Step 2: Ensure the extracted product matches the target product
+        if target_product.lower() not in product_name and product_name not in target_product.lower():
+            return False
+
+        return True
+
+    results = []
+
+    def get_cpe_number_and_check_vulnerability(self, package_name, package_version):
+        self.results = []
+
         start_limit = ""
         end_limit = ""
         nvd_api = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.abspath(os.path.join(script_dir, "..", "mapping", "CWEMapperNVD.json"))
 
         try:
-            url=f"{nvd_api}?keywordSearch={package_name}+{package_version}"
-            response = requests.get(f"{nvd_api}?keywordSearch={package_name}+{package_version}")
+            with open(file_path, 'r') as file:
+                cwe_mapper = json.load(file)
+        except Exception as e:
+            print(f"Error loading CWE mapper: {e}")
+            cwe_mapper = {}
+
+        try:
+            url = f"{nvd_api}?keywordSearch={package_name}"
+            print(url)
+            response = requests.get(f"{nvd_api}?keywordSearch={package_name}")
 
             if response.status_code == 200:
                 nvd_data = response.json()
                 vulnerabilities = nvd_data.get("vulnerabilities", [])
+                if len(vulnerabilities) == 0:
+                    return {}
 
                 for vulnerability in vulnerabilities:
                     cve_id = vulnerability.get('cve', {}).get('id', 'Unknown CVE')
                     configurations = vulnerability.get('cve', {}).get('configurations', [])
-
-                    # Extracting the CVSS base score
-                    base_score = 0
-                    cvss_metrics = vulnerability.get('cve', {}).get('metrics', {}).get('cvssMetricV31', [])
-
-                    for metric in cvss_metrics:
-                        cvss_data = metric.get('cvssData', {})
-                        severity = cvss_data.get('baseSeverity')
-                        base_score = max(base_score, cvss_data.get('baseScore', 0))
-
-
-
-                    # If baseScore is >=7, consider vulnerable directly
-                    if base_score >= 7:
-                        print(f"Base Score is {base_score}, marking {package_name} as vulnerable!")
-                        return "Vulnerable"
 
                     # Checking version-based vulnerabilities
                     for config in configurations:
@@ -130,63 +140,69 @@ class NVDHandler(BaseDataSource):
 
                                 if start == 'N/A' and end == 'N/A':
                                     continue
-                                vulnerability = match.get('vulnerable')
+                                vulnerability_possibility = match.get('vulnerable')
 
                                 cpe_entry = {
-                                    "vulnerable": vulnerability,
+                                    "vulnerable": vulnerability_possibility,
                                     "criteria": cpe23Uri,
                                     "start": start,
                                     "end": end
                                 }
+                                valid_cve = self.is_valid_cve(cpe_entry, package_name)
+                                if valid_cve == False:
+                                    break
+                                if valid_cve:
+                                    vul_status, next_patched_version = self.is_vulnerable(cpe_entry, package_name,
+                                                                                          package_version, start_limit,
+                                                                                          end_limit)
+                                    if vul_status:
+                                        cwe_list = []
+                                        weaknesses = vulnerability.get('cve', {}).get('weaknesses', [])
+                                        for weakness in weaknesses:
+                                            for desc in weakness.get('description', []):
+                                                if desc.get('lang') == 'en':
+                                                    cwe_id = desc.get('value', '')
 
-                                isValid = self.is_valid_cpe(cpe_entry, package_name, package_version, start_limit, end_limit)
-                                status, safe_version = isValid  # No more errors
-                                if status:
-                                    status1 = "Vulnerable"
-                                    result = {
-                                        "vulnerability_status": status1,
-                                        "severity": severity,
-                                        "cpe_affected": cve_id,
-                                        "base_score": base_score,
-                                        "next_safe_version": safe_version
-                                    }
+                                                    if cwe_id in cwe_mapper:
+                                                        cwe_name = cwe_mapper[cwe_id].get("name", "")
+                                                        cwe_description = cwe_mapper[cwe_id].get("description", "")
 
-                                    return result
+                                                    cwe_list.append({
+                                                        "cwe_id": cwe_id,
+                                                        "cwe_name": cwe_name,
+                                                        "description": cwe_description
+                                                    })
+                                        result = {
+                                            "packageName": package_name,
+                                            "version": package_version,
+                                            "vuln_status": {
+                                                "cve_id": cve_id,
+                                                "cwes": cwe_list,
+                                                "firstPatchedVersion": str(
+                                                    next_patched_version) if next_patched_version else None,
+                                                "publishedAt": vulnerability.get('cve', {}).get('published', '')
+                                            }
+                                        }
+                                        self.results.append(result)
+                return json.dumps(self.results, indent=4)
 
             else:
                 print('Error:', response.status_code)
-                return None
+                return json.dumps(None)
 
         except requests.exceptions.RequestException as e:
             print('Error:', e)
-            return None
+            return json.dumps(None)
 
-        return status
+        return json.dumps(None)
 
     def get_next_patch_version(current_version):
         version = Version(current_version)
         next_version = f"{version.major}.{version.minor}.{version.micro + 1}"
         return next_version
 
-    def is_valid_cpe(self,cpe_entry, target_product, package_version, start_limit, end_limit):
-        # Step 1: Extract product name dynamically from criteria
-        criteria = cpe_entry.get("criteria", "")
-        parts = criteria.split(":")  # CPE format: cpe:2.3:a:<vendor>:<product>:...
+    def is_vulnerable(self, cpe_entry, target_product, package_version, start_limit, end_limit):
 
-        if len(parts) < 4 or parts[2] != "a":  # Ensure it's an application
-            return False, None
-
-        product_name = parts[3].lower()
-
-        # Step 2: Ensure the extracted product matches the target product
-        if target_product.lower() not in product_name and product_name not in target_product.lower():
-            return False, None
-
-        # Step 3: Ensure the entry is marked as vulnerable
-        if not cpe_entry.get("vulnerable", False):
-            return False, None
-
-        # Step 4: Extract version constraints
         version_start = cpe_entry.get("start")
         version_end = cpe_entry.get("end")
 
@@ -201,7 +217,7 @@ class NVDHandler(BaseDataSource):
         if version_start == 'N/A' and version_end:
             if end_limit == "exclude":
                 if package_version < version_end:
-                    print("Vulnerable for this CPE:", criteria)
+
                     return True, version_end
                 else:
                     return False, None
@@ -222,23 +238,19 @@ class NVDHandler(BaseDataSource):
                     return False, None
             elif start_limit == 'exclude' and end_limit == 'exclude':
                 if version_start < package_version < version_end:
-                    print(version_start)
-                    print(version_end)
-                    return True, version_end
+                    next_safe_version = version_end
+
+                    return True, next_safe_version
                 else:
                     return False, None
             if start_limit == 'include' and end_limit == 'exclude':
                 if version_start <= package_version < version_end:
-                    print(version_start)
-                    print(version_end)
                     next_safe_version = version_end
                     return True, next_safe_version
                 else:
                     return False, None
             elif start_limit == 'exclude' and end_limit == 'include':
                 if version_start < package_version <= version_end:
-                    print(version_start)
-                    print(version_end)
                     next_safe_version = self.get_next_patch_version(version_end)
                     return True, next_safe_version
                 else:
@@ -247,33 +259,19 @@ class NVDHandler(BaseDataSource):
         if version_end == 'N/A' and version_start:
             if start_limit == "include":
                 if package_version >= version_start:
-                    print(version_start)
-                    print(version_end)
                     return True, version_start
                 else:
                     return False, None
             elif start_limit == 'exclude':
                 if package_version > version_start:
-                    print(version_start)
-                    print(version_end)
                     return True, version_start
                 else:
                     return False, None
 
         return False, None
 
+
 if __name__ == "__main__":
     nvd_handler = NVDHandler()
-    print(nvd_handler.handle("4.17.20", "lodash", "npm"))
-
-
-
-
-
-
-
-
-
-
-
-
+    print(nvd_handler.handle("4.17.21-beta","lodash","npm"))
+    # print(nvd_handler.handle("2.14.1", "Log4J", "npm"))

@@ -1,0 +1,134 @@
+{
+    "CWE-294": {
+        "name": "Authentication Bypass by Capture-replay",
+        "description": "A capture-replay flaw exists when the design of the software makes it possible for a malicious user to sniff network traffic and bypass authentication by replaying it to the server in question to the same effect as the original message (or with minor changes)."
+    },
+    "CWE-290": {
+        "name": "Authentication Bypass by Spoofing",
+        "description": "This attack-focused weakness is caused by improperly implemented authentication schemes that are subject to spoofing attacks."
+    },
+    "CWE-639": {
+        "name": "Authorization Bypass Through User-Controlled Key",
+        "description": "The system's authorization functionality does not prevent one user from gaining access to another user's data or record by modifying the key value identifying the data."
+    },
+    "CWE-120": {
+        "name": "Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')",
+        "description": "The program copies an input buffer to an output buffer without verifying that the size of the input buffer is less than the size of the output buffer, leading to a buffer overflow."
+    },
+    "CWE-312": {
+        "name": "Cleartext Storage of Sensitive Information",
+        "description": "The application stores sensitive information in cleartext within a resource that might be accessible to another control sphere."
+    },
+    "CWE-319": {
+        "name": "Cleartext Transmission of Sensitive Information",
+        "description": "The software transmits sensitive or security-critical data in cleartext in a communication channel that can be sniffed by unauthorized actors."
+    },
+    "CWE-362": {
+        "name": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+        "description": "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently."
+    },
+    "CWE-352": {
+        "name": "Cross-Site Request Forgery (CSRF)",
+        "description": "The web application does not, or can not, sufficiently verify whether a well-formed, valid, consistent request was intentionally provided by the user who submitted the request."
+    },
+    "CWE-502": {
+        "name": "Deserialization of Untrusted Data",
+        "description": "The application deserializes untrusted data without sufficiently verifying that the resulting data will be valid."
+    },
+    "CWE-425": {
+        "name": "Direct Request ('Forced Browsing')",
+        "description": "The web application does not adequately enforce appropriate authorization on all restricted URLs, scripts, or files."
+    },
+    "CWE-369": {
+        "name": "Divide By Zero",
+        "description": "The product divides a value by zero."
+    },
+    "CWE-415": {
+        "name": "Double Free",
+        "description": "The product calls free() twice on the same memory address, potentially leading to modification of unexpected memory locations."
+    },
+    "CWE-494": {
+        "name": "Download of Code Without Integrity Check",
+        "description": "The product downloads source code or an executable from a remote location and executes the code without sufficiently verifying the origin and integrity of the code."
+    },
+    "CWE-834": {
+        "name": "Excessive Iteration",
+        "description": "The software performs an iteration or loop without sufficiently limiting the number of times that the loop is executed."
+    },
+    "CWE-668": {
+        "name": "Exposure of Resource to Wrong Sphere",
+        "description": "The product exposes a resource to the wrong control sphere, providing unintended actors with inappropriate access to the resource."
+    },
+    "CWE-200": {
+        "name": "Exposure of Sensitive Information to an Unauthorized Actor",
+        "description": "The product exposes sensitive information to an actor that is not explicitly authorized to have access to that information."
+    },
+    "CWE-610": {
+        "name": "Externally Controlled Reference to a Resource in Another Sphere",
+        "description": "The product uses an externally controlled name or reference that resolves to a resource that is outside of the intended control sphere."
+    },
+    "CWE-552": {
+        "name": "Files or Directories Accessible to External Parties",
+        "description": "The product makes files or directories accessible to unauthorized actors, even though they should not be."
+    },
+    "CWE-209": {
+        "name": "Generation of Error Message Containing Sensitive Information",
+        "description": "The software generates an error message that includes sensitive information about its environment, users, or associated data."
+    },
+    "CWE-287": {
+        "name": "Improper Authentication",
+        "description": "When an actor claims to have a given identity, the software does not prove or insufficiently proves that the claim is correct."
+    },
+    "CWE-295": {
+        "name": "Improper Certificate Validation",
+        "description": "The software does not validate, or incorrectly validates, a certificate."
+    },
+    "CWE-273": {
+        "name": "Improper Check for Dropped Privileges",
+        "description": "The software attempts to drop privileges but does not check or incorrectly checks to see if the drop succeeded."
+    },
+    "CWE-754": {
+        "name": "Improper Check for Unusual or Exceptional Conditions",
+        "description": "The software does not check or incorrectly checks for unusual or exceptional conditions that are not expected to occur frequently during day to day operation of the software."
+    },
+    "CWE-913": {
+        "name": "Improper Control of Dynamically-Managed Code Resources",
+        "description": "The software does not properly restrict reading from or writing to dynamically-managed code resources such as variables, objects, classes, attributes, functions, or executable instructions or statements."
+    },
+    "CWE-94": {
+        "name": "Improper Control of Generation of Code ('Code Injection')",
+        "description": "The software constructs all or part of a code segment using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the syntax or behavior of the intended code segment."
+    },
+    "CWE-116": {
+        "name": "Improper Encoding or Escaping of Output",
+        "description": "The software prepares a structured message for communication with another component, but encoding or escaping of the data is either missing or done incorrectly. As a result, the intended structure of the message is not preserved."
+    },
+    "CWE-924": {
+        "name": "Improper Enforcement of Message Integrity During Transmission in a Communication Channel",
+        "description": "The software establishes a communication channel with an endpoint and receives a message from that endpoint, but it does not sufficiently ensure that the message was not modified during transmission."
+    },
+    "CWE-178": {
+        "name": "Improper Handling of Case Sensitivity",
+        "description": "The software does not properly account for differences in case sensitivity when accessing or determining the properties of a resource, leading to inconsistent results."
+    },
+    "CWE-755": {
+        "name": "Improper Handling of Exceptional Conditions",
+        "description": "The software does not handle or incorrectly handles an exceptional condition."
+    },
+    "CWE-665": {
+        "name": "Improper Initialization",
+        "description": "The software does not initialize or incorrectly initializes a resource, which might leave the resource in an unexpected state when it is accessed or used."
+    },
+    "NVD-CWE-noinfo": {
+        "name": "Insufficient Information",
+        "description": "There is insufficient information about the issue to classify it; details are unkown or unspecified."
+    },
+    "NVD-CWE-Other": {
+        "name": "Other",
+        "description": "NVD is only using a subset of CWE for mapping instead of the entire CWE, and the weakness type is not covered by that subset."
+    },
+    "CWE-276": {
+        "name": "Incorrect Default Permissions",
+        "description": "During installation, installed file permissions are set to allow anyone to modify those files."
+    }
+}
