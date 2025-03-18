@@ -14,10 +14,9 @@ class MvnParser(DependencyParser):
         project_dir = os.path.dirname(pom_path)
         json_filename = "dep-tree.json"
         json_output_file = os.path.join(project_dir, json_filename)
-        dependencies_json = None  # Initialize variable outside the try block
+        dependencies_json = None
 
         try:
-            # Run the Maven command to get the dependency tree
             result = subprocess.run(
                 [
                     "mvn", "-f", pom_path,
@@ -46,19 +45,30 @@ class MvnParser(DependencyParser):
         except Exception as e:
             print(json.dumps({"ERROR": "Exception occurred.", "details": str(e)}))
         
-        # Clean up the file if it exists
         if os.path.exists(json_output_file):
             os.remove(json_output_file)
             
         return dependencies_json
     
-    def get_flat_dependency_set(self, dependencies_json):
-        dependency_set = set()
-        stack = [dependencies_json]
+    def get_flat_dependency_set(self, dep_json):
+        result = set()
 
-        while stack:
-            dependency = stack.pop()
-            dependency_set.add((f"{dependency['groupId']}:{dependency['artifactId']}", dependency['version']))
-            stack.extend(dependency.get('children', []))
-        # TODO: Return in a standard dictionary format for each package manager to give client class a uniform interface
-        return dependency_set
+        def traverse_dependencies(node, is_direct_dependency):
+            if 'groupId' in node and 'artifactId' in node and 'version' in node:
+                package_name = f"{node['groupId']}:{node['artifactId']}"
+                package_version = node['version']
+                package_entry = (package_name, package_version, is_direct_dependency)
+                result.add(package_entry)
+
+            if 'children' in node:
+                for child in node['children']:
+                    traverse_dependencies(child, False)
+
+        # Root node in dep_json is the actual project itself. Direct dependencies
+        # are its first-level children.
+        # Only pass True for direct dependency status to the first level children.
+        if 'children' in dep_json:
+            for child in dep_json['children']:
+                traverse_dependencies(child, True)
+
+        return result
