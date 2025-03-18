@@ -1,8 +1,6 @@
 import argparse
-import sys
-import os
-import json
 from collections import defaultdict
+import sys
 
 # Importing project submodules
 from datasources.ghsa import GHSAHandler
@@ -123,8 +121,7 @@ def main(args = None):
     for vuln_type, count in vuln_type_counts.items():
         print(f"{vuln_type}: {count}")
 
-    # Uncomment this line if you want to generate the HTML report directly
-    # generate_html_report(vulnerabilities_list)
+    generate_html_report(vulnerabilities_list)
 
     # Return the final JSON object
     return final_result

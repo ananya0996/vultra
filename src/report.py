@@ -2,9 +2,9 @@ import json
 import os
 
 def generate_html_report(json_data, output_html="vulnerability_report.html"):
-    # Correct path to template files
-    template_path = "src\\report_template\\report_template.html"
-    styles_path = "src\\report_template\\report_template.css"
+    base_path = os.path.join("src", "report_template")
+    template_path = os.path.join(base_path, "report_template.html")
+    styles_path = os.path.join(base_path, "report_template.css")
 
     if not os.path.exists(template_path):
             print(f"ERROR: Template file not found at {template_path}")
