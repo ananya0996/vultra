@@ -2,10 +2,11 @@ import json
 import os
 import subprocess
 
-from dependency_parser import DependencyParser
+from parsers.dependency_parser import DependencyParser
 
 class NpmParser(DependencyParser):
     def get_dependency_tree(self, package_json_path):
+        pom_path = os.path.abspath(package_json_path)
         if not os.path.isfile(package_json_path):
             print(json.dumps({"error": f"{package_json_path} does not exist."}))
             return
