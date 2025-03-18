@@ -1,5 +1,7 @@
 import argparse
 import sys
+import os
+import json
 
 # Importing project submodules
 from datasources.ghsa import GHSAHandler
@@ -51,7 +53,7 @@ def main(args = None):
         print("ERROR: No dependencies found or error in parsing.")
         sys.exit(1)
     
-    vulnerabilities = []
+    vulnerabilities_list = []
 
     handler = init_handler_chain()
 
@@ -59,10 +61,33 @@ def main(args = None):
         # Access tuple elements by index, not by key
         artifact_id = dependency[0]  # This is the "group.artifact"
         version = dependency[1]     # This is the "version"
+        # inser vuln_type here, change to direct/trans from true/false
         result = handler.handle(artifact_id, version, args["framework"])
         if result:
-            vulnerabilities.append(result)
-        
+            formatted_vulns = {
+                "package_name": artifact_id,
+                "version": version,
+                "paths": [],  # Placeholder for dependency paths (modify if needed)
+                "vulnerabilities": []
+            }
+
+            for vuln in result:
+                vuln_types = [cwe["cwe_name"] for cwe in vuln["vuln_status"].get("cwes", [])] or "N/A"
+                
+                formatted_vulns["vulnerabilities"].append({
+                    "cve": vuln["vuln_status"]["cve_id"],
+                    "severity" : vuln["vuln_status"]["severity"],
+                    "firstPatchedVersion": vuln["vuln_status"].get("firstPatchedVersion", "N/A"),
+                    "vuln_types": vuln_types
+                })
+
+            vulnerabilities_list.append(formatted_vulns)
+
+    output_path = os.path.join(os.getcwd(), "vulnerabilities.json")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(vulnerabilities_list, f, indent=4)
+
+    print(f"Vulnerability data saved to {output_path}")
 
 if __name__ == "__main__":
     main()
