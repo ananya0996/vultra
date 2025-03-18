@@ -56,7 +56,7 @@ def main(args = None):
     
     handler = init_handler_chain()
     vulnerabilities_list = []
-    paths = []
+    paths = None
     direct_dependencies = 0
     transitive_dependencies = 0
     direct_vulnerabilities = 0
@@ -81,11 +81,12 @@ def main(args = None):
                 direct_vulnerabilities += 1
             else:
                 transitive_vulnerabilities += 1
+                paths = parser.find_paths_in_tree(dependency_tree, artifact_id, version)
 
             formatted_vulns = {
                 "package_name": artifact_id,
                 "version": version,
-                "paths": paths,  # Placeholder for dependency paths (modify if needed)
+                "paths": paths,
                 "vulnerabilities": []
             }
 
@@ -121,7 +122,6 @@ def main(args = None):
 
     # Return the final JSON object
     return final_result
-    
 
 if __name__ == "__main__":
     main()
