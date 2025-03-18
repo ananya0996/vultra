@@ -6,27 +6,31 @@ from parsers.dependency_parser import DependencyParser
 
 class NpmParser(DependencyParser):
     def get_dependency_tree(self, package_json_path):
-        pom_path = os.path.abspath(package_json_path)
+        package_json_path = os.path.abspath(package_json_path)
+        current_directory = os.getcwd()
+        project_directory = os.path.dirname(package_json_path)
+
         if not os.path.isfile(package_json_path):
-            print(json.dumps({"error": f"{package_json_path} does not exist."}))
+            print(json.dumps({"ERROR": f"{package_json_path} does not exist."}))
             return
 
-        project_dir = os.path.dirname(package_json_path)
         json_filename = "dep-tree.json"
-        json_output_file = os.path.join(project_dir, json_filename)
+        json_output_file = os.path.join(project_directory, json_filename)
 
         try:
+            os.chdir(project_directory)
             # package-lock.json is required
             install_result = subprocess.run(
                 ['npm', 'install'],
                 capture_output=True,
                 text=True,
-                shell=True,
-                cwd=project_dir
+                cwd=project_directory
             )
-
+            os.chdir(current_directory)
             if install_result.returncode != 0:
-                print(json.dumps({"error": "npm install failed", "details": install_result.stderr}))
+                print("ERROR CODE: " + str(install_result.returncode))
+                print(install_result.stdout)
+                print("--------------->" + str(install_result.stder))
                 return None
 
             #  Run npm list --all --json to get the list of transitive and direct dependencies
@@ -34,11 +38,11 @@ class NpmParser(DependencyParser):
                 ['npm', 'list', '--all', '--json'],
                 capture_output=True,
                 text=True,
-                cwd=project_dir
+                cwd=project_directory
             )
 
             if list_result.returncode != 0:
-                print(json.dumps({"error": "npm list failed", "details": list_result.stderr}))
+                print(json.dumps({"ERROR": "npm list failed", "details": list_result.stderr}))
                 return None
 
             # write data to file for further processing
@@ -49,8 +53,8 @@ class NpmParser(DependencyParser):
             with open(json_output_file, "r", encoding="utf-8") as f:
                 dependencies_json = json.load(f)
 
-        except FileNotFoundError:
-            print(json.dumps({"error": "npm is not found. Ensure it is installed and added to the system PATH."}))
+        except FileNotFoundError as e:
+            print(json.dumps({"ERROR": f"{e}"}))
 
         os.remove(json_output_file)
         return dependencies_json
