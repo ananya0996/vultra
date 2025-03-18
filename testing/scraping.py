@@ -127,7 +127,7 @@ def main():
     all_links = list(set(js_repos + java_repos))
     print(f"\nTotal unique GitHub project links collected: {len(all_links)}")
 
-    base_folder = "dep-folder"
+    base_folder = "testing/dep-files"
     if os.path.exists(base_folder):
         shutil.rmtree(base_folder)
     os.makedirs(base_folder, exist_ok=True)
