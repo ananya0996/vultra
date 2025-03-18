@@ -1,7 +1,6 @@
 import requests
 import os
 import re
-import semver
 import sys
 import json
 
@@ -279,8 +278,7 @@ if __name__ == "__main__":
 
     # Test cases
     test_cases = [
-        ("org.xmlunit.xmlunit-core 2.9.1", "4.3.0.RELEASE", "mvn"),
-        ("org.apache.struts:struts2-core", "2.3.30", "mvn")
+        ("lodash", "4.17.20", "npm"),
     ]
 
     for package, version, ecosystem in test_cases:

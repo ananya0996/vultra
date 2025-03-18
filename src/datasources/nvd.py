@@ -1,12 +1,11 @@
 import os
 
-from datasource import BaseDataSource
+from datasources.datasource import BaseDataSource
 import subprocess
 import requests
 import re
 import json
 from packaging.version import Version, parse
-
 
 class NVDHandler(BaseDataSource):
     package_manager = ["mvn", "npm"]
