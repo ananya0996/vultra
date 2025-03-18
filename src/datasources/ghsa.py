@@ -3,6 +3,7 @@ import os
 import re
 import semver
 import sys
+import json
 
 from datasource import BaseDataSource
 
@@ -10,7 +11,7 @@ class GHSAHandler(BaseDataSource):
 
     url = "https://api.github.com/graphql"
     
-    token_env_var = "GITHUB_ACCESS_TOKEN"
+    token_env_var = "GITHUB_PAT"
 
     headers = {
         "Authorization": "Bearer ",
@@ -26,6 +27,11 @@ class GHSAHandler(BaseDataSource):
         self.headers['Authorization'] += access_token
 
     def handle(self, package_name, package_version, ecosystem):
+
+        # Conversion for GHSA API
+        if ecosystem == "mvn":
+            ecosystem = "maven"
+
         # GraphQL Query to fetch specified metrics
         query = """
         query ($package: String!, $after: String) {
@@ -65,7 +71,7 @@ class GHSAHandler(BaseDataSource):
         """ % ecosystem.upper()
         
         variables = {"package": package_name, "after": None}
-        stored_vulnerabilities = []
+        result_vulnerabilities = []
         
         while True:
             response = requests.post(self.url,
@@ -79,26 +85,48 @@ class GHSAHandler(BaseDataSource):
                 data = response.json()
             except ValueError:
                 print("ERROR: Invalid JSON response:", response.text)
-                return
+                return []
             
             if "errors" in data:
                 print("ERROR: ", data["errors"])
-                return
+                return []
             
             if "data" not in data or "securityVulnerabilities" not in data["data"]:
                 print("ERROR: Unexpected response format:", data)
-                return
+                return []
             
             for edge in data["data"]["securityVulnerabilities"].get("edges", []):
                 node = edge["node"]
                 if self.is_version_vulnerable(package_version, node["vulnerableVersionRange"]):
-                    stored_vulnerabilities.append({
-                        "cve": node["advisory"].get("identifiers", []),
-                        "cweID": [cwe["node"].get("cweId", "N/A") for cwe in node["advisory"].get("cwes", {}).get("edges", [])],
-                        "cweName": [cwe["node"].get("name", "N/A") for cwe in node["advisory"].get("cwes", {}).get("edges", [])],
-                        "publishedAt": node["advisory"].get("publishedAt", "N/A"),
-                        "severity": node.get("severity", "N/A"),
-                        "firstPatchedVersion": node["firstPatchedVersion"].get("identifier") if node.get("firstPatchedVersion") else None
+                    # Find CVE identifier
+                    cve_id = "Unknown"
+                    for identifier in node["advisory"].get("identifiers", []):
+                        if identifier.get("type") == "CVE":
+                            cve_id = identifier.get("value")
+                            break
+                    
+                    # Format CWEs
+                    cwes = []
+                    for cwe in node["advisory"].get("cwes", {}).get("edges", []):
+                        cwes.append({
+                            "cwe_id": cwe["node"].get("cweId", "Unknown"),
+                            "cwe_name": cwe["node"].get("name", ""),
+                            "description": cwe["node"].get("description", " ")
+                        })
+                    
+                    # Default empty CWE if none found
+                    if not cwes:
+                        cwes = [{"cwe_id": "Unknown", "cwe_name": "", "description": " "}]
+                    
+                    result_vulnerabilities.append({
+                        "packageName": package_name,
+                        "version": package_version,
+                        "vuln_status": {
+                            "cve_id": cve_id,
+                            "cwes": cwes,
+                            "firstPatchedVersion": node["firstPatchedVersion"].get("identifier") if node.get("firstPatchedVersion") else "Unknown",
+                            "publishedAt": node["advisory"].get("publishedAt", "Unknown")
+                        }
                     })
             
             page_info = data["data"]["securityVulnerabilities"].get("pageInfo", {})
@@ -107,118 +135,143 @@ class GHSAHandler(BaseDataSource):
             
             variables["after"] = page_info.get("endCursor")
         
-        print(stored_vulnerabilities)
+        # Return JSON  output
+        return result_vulnerabilities
 
+    def print_json_result(self, vulnerabilities):
+        """Print the vulnerabilities in JSON format"""
+        print(json.dumps(vulnerabilities, indent=4))
+
+    @staticmethod
     def is_version_vulnerable(version, vulnerable_range):
         """
-        Check if a version is within a vulnerable range, respecting suffixes.
+        Check if a version is within a vulnerable range, handling non-standard version formats.
         
         Args:
-            version (str): The version to check (e.g. "2.0.0Alpha")
-            vulnerable_range (str): The vulnerable range (e.g. "<2.1.1")
+            version (str): The version to check (e.g. "2.5.7.SR0")
+            vulnerable_range (str): The vulnerable range (e.g. ">=5.2.0, <=5.2.17")
         
         Returns:
             bool: True if the version is vulnerable, False otherwise
         """
-        # Parse the vulnerable range
-        # Common formats: <2.1.1, >=1.0.0 <2.0.0, etc.
+        # Split combined ranges into individual conditions
+        range_conditions = vulnerable_range.split(',')
         
-        # Extract the version parts and operators
-        range_parts = re.findall(r'([<>=]+)\s*([0-9]+(?:\.[0-9]+)*(?:[-+][0-9A-Za-z-.]+)?|[0-9A-Za-z-.]+)', vulnerable_range)
+        # All conditions must be met for a version to be vulnerable
+        for condition in range_conditions:
+            condition = condition.strip()
+            # Extract the operator and version
+            match = re.match(r'([<>=]+)\s*([0-9A-Za-z.-]+)', condition)
+            if not match:
+                continue
+                
+            operator, range_version = match.groups()
+            
+            # Perform the comparison
+            comparison_result = GHSAHandler.compare_versions(version, range_version)
+            
+            if operator == "<":
+                if comparison_result >= 0:
+                    return False
+            elif operator == "<=":
+                if comparison_result > 0:
+                    return False
+            elif operator == ">":
+                if comparison_result <= 0:
+                    return False
+            elif operator == ">=":
+                if comparison_result < 0:
+                    return False
+            elif operator == "=":
+                if comparison_result != 0:
+                    return False
         
-        # No valid range parts found
-        if not range_parts:
-            return False
-            
-        try:
-            # Check if this is a simple comparison (e.g., <2.1.1)
-            for operator, range_version in range_parts:
-                # Make sure we're comparing versions with the same suffix structure
-                version_suffix = extract_suffix(version)
-                range_suffix = extract_suffix(range_version)
-                
-                # If suffixes don't match and we're not dealing with a standard version,
-                # then we need special handling
-                if version_suffix != range_suffix and (version_suffix or range_suffix):
-                    # If range has suffix but version doesn't, or vice versa, 
-                    # we need suffix-aware comparison
-                    if operator == "<" or operator == "<=":
-                        # For "less than" comparisons, we can't compare versions with different suffix types directly
-                        # We only consider it vulnerable if the suffixes match or if both are standard versions
-                        if version_suffix != range_suffix:
-                            continue
-                    
-                    # For "greater than" comparisons, similar logic applies
-                    if operator == ">" or operator == ">=":
-                        if version_suffix != range_suffix:
-                            continue
-                
-                # Standard semver comparison for versions with matching or no suffixes
-                normalized_version = normalize_version(version)
-                normalized_range_version = normalize_version(range_version)
-                
-                # Use semver's comparison functions
-                if operator == "<":
-                    if semver.compare(normalized_version, normalized_range_version) >= 0:
-                        return False
-                elif operator == "<=":
-                    if semver.compare(normalized_version, normalized_range_version) > 0:
-                        return False
-                elif operator == ">":
-                    if semver.compare(normalized_version, normalized_range_version) <= 0:
-                        return False
-                elif operator == ">=":
-                    if semver.compare(normalized_version, normalized_range_version) < 0:
-                        return False
-                elif operator == "=":
-                    if semver.compare(normalized_version, normalized_range_version) != 0:
-                        return False
-            
-            # If we've made it through all the checks, the version is vulnerable
-            return True
-            
-        except ValueError:
-            # If we can't parse the versions, default to not vulnerable
-            print(f"Warning: Could not parse version comparison: {version} vs {vulnerable_range}")
-            return False
+        return True
 
-    def extract_suffix(version):
-        """Extract any suffix (alpha, beta, etc.) from a version string."""
-        match = re.search(r'[0-9]+(?:\.[0-9]+)*(?:-([0-9A-Za-z-.]+))?', version)
-        if match and match.group(1):
-            return match.group(1)
+    @staticmethod
+    def compare_versions(version1, version2):
+        """
+        Compare two version strings, handling different release lines.
         
-        # Check for non-standard suffixes (like Alpha, Beta that aren't using semver format)
-        match = re.search(r'[0-9]+(?:\.[0-9]+)*([A-Za-z]+)', version)
-        if match:
-            return match.group(1)
+        """
+        # Extract numeric parts and suffixes
+        v1_parts = re.findall(r'(\d+|[A-Za-z]+)', version1)
+        v2_parts = re.findall(r'(\d+|[A-Za-z]+)', version2)
         
-        return ""
-    
-    def normalize_version(version):
-        """Convert version to a semver-compatible format."""
-        # Extract components
-        if not re.match(r'^[0-9]+(\.[0-9]+)*', version):
-            # If it doesn't start with numbers, make it a valid semver
-            version = "0.0.0-" + version
-            return version
+        # Compare parts one by one
+        for i in range(min(len(v1_parts), len(v2_parts))):
+            part1 = v1_parts[i]
+            part2 = v2_parts[i]
+            
+            # If both parts are numeric, compare as integers
+            if part1.isdigit() and part2.isdigit():
+                num1 = int(part1)
+                num2 = int(part2)
+                if num1 < num2:
+                    return -1
+                elif num1 > num2:
+                    return 1
+            else:
+                # For mixed or string comparisons
+                # Special handling for common suffixes
+                suffix_rank = {
+                    "ALPHA": 0,
+                    "BETA": 1,
+                    "RC": 2,
+                    "RELEASE": 3,
+                    "SR": 4,
+                    "SP": 5,
+                    "SEC": 6
+                }
+                
+                # Extract the base word 
+                base1 = re.match(r'([A-Za-z]+)(\d*)', part1)
+                base2 = re.match(r'([A-Za-z]+)(\d*)', part2)
+                
+                if base1 and base2:
+                    word1, num1 = base1.groups()
+                    word2, num2 = base2.groups()
+                    
+                    # Compare the words first
+                    rank1 = suffix_rank.get(word1.upper(), -1)
+                    rank2 = suffix_rank.get(word2.upper(), -1)
+                    
+                    if rank1 != rank2:
+                        if rank1 == -1 or rank2 == -1:
+                            # If one suffix isn't in our ranking, compare alphabetically
+                            if word1.upper() < word2.upper():
+                                return -1
+                            elif word1.upper() > word2.upper():
+                                return 1
+                        else:
+                            # Use the ranking
+                            return -1 if rank1 < rank2 else 1
+                    
+                    # If words are the same, compare numbers if they exist
+                    if num1 and num2:
+                        num1_val = int(num1)
+                        num2_val = int(num2)
+                        if num1_val < num2_val:
+                            return -1
+                        elif num1_val > num2_val:
+                            return 1
+                    elif num1: 
+                        return 1
+                    elif num2:  
+                        return -1
+                else:
+                    # Simple string comparison
+                    if part1 < part2:
+                        return -1
+                    elif part1 > part2:
+                        return 1
         
-        # Extract base version and suffix
-        base_match = re.match(r'^([0-9]+(?:\.[0-9]+)*)(.*)$', version)
-        if not base_match:
-            return "0.0.0"
+        # If we get here and one version has more parts than the other
+        if len(v1_parts) < len(v2_parts):
+            return -1
+        elif len(v1_parts) > len(v2_parts):
+            return 1
         
-        base = base_match.group(1)
-        suffix = base_match.group(2)
-        
-        # Ensure base has at least 3 components (major.minor.patch)
-        parts = base.split('.')
-        while len(parts) < 3:
-            parts.append('0')
-        base = '.'.join(parts)
-        
-        # Convert non-standard suffixes to semver format
-        if suffix and not suffix.startswith('-') and not suffix.startswith('+'):
-            suffix = '-' + suffix
-        
-        return base + suffix
+        # Versions are equal
+        return 0
+
