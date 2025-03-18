@@ -55,7 +55,7 @@ class NpmParser(DependencyParser):
 
         os.remove(json_output_file)
         return dependencies_json
-    
+
     def get_flat_dependency_set(self, dep_json):
         result = set()
 
@@ -73,3 +73,24 @@ class NpmParser(DependencyParser):
             traverse_dependencies(dep_json['dependencies'], True)
 
         return result
+    
+    def find_paths_in_tree(self, dependency_tree, package_name, package_version, path=""):
+        results = []
+        # Initialize path with the root package name if it's the first call
+        if not path:
+            current_path = dependency_tree['name']
+        else:
+            current_path = path
+
+        # Check if the current node is the target package with correct version
+        if current_path.split('->')[-1].strip() == package_name and dependency_tree.get('version', '') == package_version:
+            results.append(current_path)
+
+        # Recursively search in children if they exist
+        if 'dependencies' in dependency_tree:
+            for child_name, child_data in dependency_tree['dependencies'].items():
+                # Build the new path including this child's name
+                new_path = current_path + " -> " + child_name
+                results.extend(self.find_paths_in_tree(child_data, package_name, package_version, new_path))
+
+        return results
