@@ -1,6 +1,6 @@
 import os
 
-from datasource import BaseDataSource
+from datasources.datasource import BaseDataSource
 import subprocess
 import requests
 import re

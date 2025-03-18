@@ -1,4 +1,5 @@
 import os
+import subprocess
 import xml.etree.ElementTree as ET
 
 
@@ -105,12 +106,31 @@ def find_parent_pom_xml():
         return []
 
     return pom_paths
+def call_main_py(framework, file_path):
+    test_py_dir = os.path.dirname(os.path.abspath(__file__))
+
+    project_root = os.path.abspath(os.path.join(test_py_dir, ".."))
+    print(project_root)
+    main_py_path = os.path.join(project_root, "src\main.py")
+
+    if not os.path.exists(main_py_path):
+        raise FileNotFoundError(f"main.py not found at expected location: {main_py_path}")
+
+    subprocess.run(["python", main_py_path, "--framework", framework, "--file", file_path], check=True)
 
 
 def main():
 
     npm_results = find_all_package_json()
     mvn_results = find_parent_pom_xml()
+    for project_name, file_path, framework in npm_results:
+        print(f"Processing {framework} project: {project_name}")
+        call_main_py(framework, file_path)
+
+    for project_name, file_path, framework in mvn_results:
+        print(f"Processing {framework} project: {project_name}")
+        call_main_py(framework, file_path)
+
     print(npm_results)
     print(mvn_results)
 
