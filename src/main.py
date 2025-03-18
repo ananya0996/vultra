@@ -57,7 +57,7 @@ def main(args = None):
     
     handler = init_handler_chain()
     vulnerabilities_list = []
-    paths = []
+    paths = None
     direct_dependencies = 0
     transitive_dependencies = 0
     direct_vulnerabilities = 0
@@ -87,7 +87,7 @@ def main(args = None):
             formatted_vulns = {
                 "package_name": artifact_id,
                 "version": version,
-                "paths": paths,  # Placeholder for dependency paths (modify if needed)
+                "paths": paths,
                 "vulnerabilities": []
             }
 
@@ -113,15 +113,21 @@ def main(args = None):
         "transitive_dependencies": transitive_dependencies,
         "direct_vulnerabilities": direct_vulnerabilities,
         "transitive_vulnerabilities": transitive_vulnerabilities,
-        "vuln_type_counts": dict(vuln_type_counts)
+        "vuln_type_counts": dict(vuln_type_counts)  
     }
 
-    # Uncomment this line to generate the HTML report of vulnerability analysis
+    # Print final counts
+    print(f"Direct Dependencies: {direct_dependencies}, Transitive Dependencies: {transitive_dependencies}")
+    print(f"Direct Vuln: {direct_vulnerabilities}, Transitive Vuln: {transitive_vulnerabilities}")
+    print("\nFrequency of Unique Vulnerability Types:")
+    for vuln_type, count in vuln_type_counts.items():
+        print(f"{vuln_type}: {count}")
+
+    # Uncomment this line if you want to generate the HTML report directly
     # generate_html_report(vulnerabilities_list)
 
     # Return the final JSON object
     return final_result
-    
 
 if __name__ == "__main__":
     main()

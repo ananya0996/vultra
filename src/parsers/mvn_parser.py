@@ -72,3 +72,16 @@ class MvnParser(DependencyParser):
                 traverse_dependencies(child, True)
 
         return result
+
+    def find_paths_in_tree(self, dependency_tree, package_name, package_version, path=""):
+        results = []
+        current_path = path + "->" + f"{dependency_tree['groupId']}:{dependency_tree['artifactId']}" if path else f"{dependency_tree['groupId']}:{dependency_tree['artifactId']}"
+
+        if f"{dependency_tree['groupId']}:{dependency_tree['artifactId']}" == package_name and dependency_tree['version'] == package_version:
+            results.append(current_path)
+
+        if 'children' in dependency_tree:
+            for child in dependency_tree['children']:
+                results.extend(self.find_paths_in_tree(child, package_name, package_version, current_path))
+
+        return results
