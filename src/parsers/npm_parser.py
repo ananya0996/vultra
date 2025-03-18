@@ -50,13 +50,11 @@ class NpmParser(DependencyParser):
             with open(json_output_file, "r", encoding="utf-8") as f:
                 dependencies_json = json.load(f)
 
-            dependencies_list = self.get_flat_dependency_set(dependencies_json)
-
         except FileNotFoundError:
             print(json.dumps({"error": "npm is not found. Ensure it is installed and added to the system PATH."}))
 
         os.remove(json_output_file)
-        return dependencies_list
+        return dependencies_json
     
     def get_flat_dependency_set(self, dependencies_json):
         dependency_set = set()

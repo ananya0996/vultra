@@ -7,7 +7,6 @@ import re
 import json
 from packaging.version import Version, parse
 
-
 class NVDHandler(BaseDataSource):
     package_manager = ["mvn", "npm"]
 

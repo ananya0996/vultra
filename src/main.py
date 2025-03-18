@@ -7,7 +7,7 @@ from datasources.nvd import NVDHandler
 from parsers.mvn_parser import MvnParser
 from parsers.npm_parser import NpmParser
 
-def parse_cmd_line_args():
+def parse_cmd_line_args(args = None):
     frameworks = ["mvn", "npm"]
     parser = argparse.ArgumentParser(
         description = "Analyze security vulnerabilities in software projects.")
@@ -16,7 +16,8 @@ def parse_cmd_line_args():
     parser.add_argument("--file", required = True, help = "Path to the"
                     " dependency manifest file (eg: pom.xml for Maven,"
                     " package.json for NPM, etc.)")
-    args = parser.parse_args()
+
+    args = parser.parse_args(args)
 
     return {
         "framework": args.framework,
@@ -39,13 +40,12 @@ def init_handler_chain():
     ghsa_handler.set_next(nvd_handler)
     return ghsa_handler
 
-def main():
-    args = parse_cmd_line_args()
+def main(args = None):
+    args = parse_cmd_line_args(args)
     parser = get_parser(args["framework"])
 
     dependency_tree = parser.get_dependency_tree(args["file"])
     unique_dependencies = parser.get_flat_dependency_set(dependency_tree)
-    print("unique ones ", unique_dependencies)
 
     if not unique_dependencies:
         print("ERROR: No dependencies found or error in parsing.")
