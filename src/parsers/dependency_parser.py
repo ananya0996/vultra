@@ -13,3 +13,8 @@ class DependencyParser(ABC):
     @abstractmethod
     def get_flat_dependency_set(self, dependencies_json):
         pass
+
+    # Find all paths to a package (and version) in a dependency tree.
+    @abstractmethod
+    def find_paths_in_tree(self, dependency_tree, package_name, package_version, path=""):
+        pass
