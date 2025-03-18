@@ -26,41 +26,55 @@ class NVDHandler(BaseDataSource):
             re.IGNORECASE
         ))
 
+    def direct_update_for_rc_version(self, package_name, package_version, package_manager, groupId=None):
+        self.results = []
+        try:
+            if package_manager == "npm":
+                get_all = subprocess.run(
+                    [r"C:\Program Files\nodejs\npm.cmd", "show", package_name, "versions", "--json"],
+                    capture_output=True, text=True, check=True, shell=True
+                )
+                versions = json.loads(get_all.stdout)
+                stable_versions = [v for v in versions if not self.is_rc_version(v)]
+                latest_stable = stable_versions[-1] if stable_versions else None
+                result = [{
+                    "packageName": package_name,
+                    "version": package_version,
+                    "stable_version": latest_stable,
+                    "vuln_status": []
+                }]
+                self.results.append(result)
+                return json.dumps(result, indent=4)
+            elif package_manager == "maven":
 
-    def direct_update_for_rc_version(self, package_name, package_version, package_manager, groupId):
-
-        if self.is_rc_version(package_version):
-            try:
-                if package_manager == "npm":
-
-                    result = subprocess.run(
-                        [r"C:\Program Files\nodejs\npm.cmd", "show", package_name, "versions", "--json"],
-                        capture_output=True, text=True, check=True,shell=True
-                    )
-                    versions = json.loads(result.stdout)
-                    stable_versions = [v for v in versions if not self.is_rc_version(v)]
-                    latest_stable = stable_versions[-1] if stable_versions else None
-                    return f"Update to {latest_stable}" if latest_stable else "No stable version found."
-
-                elif package_manager == "maven":
-                    groupId = groupId
-                    artifactId = package_name
-                    url = f"https://search.maven.org/solrsearch/select?q={groupId}+AND+a:{artifactId}&rows=10&wt=json"
-                    response = requests.get(url)
-                    if response.status_code == 200:
-                        data = response.json();
-                        if data["response"]["numFound"] > 0:
-                            latest_version = [doc["latestVersion"] for doc in data["response"]["docs"]]
-                            return f"Update to {latest_version}" if latest_version else "No stable version found."
-
-
+                if ":" in package_name:
+                    parts = package_name.split(":")
+                    extracted_groupId = parts[0]
+                    artifactId = parts[1]
                 else:
-                    return f"Unsupported package manager: {package_manager}"
+                    extracted_groupId = groupId
+                    artifactId = package_name
 
-            except Exception as e:
-                return f"Error: {str(e)}"
-        else:
-            return f"{package_name} ({package_version}) is stable."
+
+                url = f"https://search.maven.org/solrsearch/select?q=g:{extracted_groupId}+AND+a:{artifactId}&rows=10&wt=json"
+                print(url)
+                response = requests.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data["response"]["numFound"] > 0:
+                        latest_version = data["response"]["docs"][0]["latestVersion"]
+                        result = [{
+                            "packageName": package_name,
+                            "version": package_version,
+                            "stable_version": latest_version,
+                            "vuln_status": []
+                        }]
+                        self.results.append(result)
+                        return json.dumps(result, indent=4)
+            else:
+                return f"Unsupported package manager: {package_manager}"
+        except Exception as e:
+            return f"Error: {str(e)}"
 
     def get_valid_group_id(self, artifact_id):
         """Fetch valid group IDs for a given artifact."""
@@ -80,8 +94,6 @@ class NVDHandler(BaseDataSource):
             return False
 
         product_name = parts[3].lower()
-
-        # Step 2: Ensure the extracted product matches the target product
         if target_product.lower() not in product_name and product_name not in target_product.lower():
             return False
 
@@ -175,6 +187,7 @@ class NVDHandler(BaseDataSource):
                                         result = {
                                             "packageName": package_name,
                                             "version": package_version,
+                                            "stable_version":"",
                                             "vuln_status": {
                                                 "cve_id": cve_id,
                                                 "cwes": cwe_list,
@@ -271,7 +284,9 @@ class NVDHandler(BaseDataSource):
         return False, None
 
 
-if __name__ == "__main__":
-    nvd_handler = NVDHandler()
-    print(nvd_handler.handle("4.17.21-beta","lodash","npm"))
-    # print(nvd_handler.handle("2.14.1", "Log4J", "npm"))
+# if __name__ == "__main__":
+#     nvd_handler = NVDHandler()
+#     # print(nvd_handler.handle("4.17.21-beta","lodash","npm"))
+#     # print(nvd_handler.handle("org.springframework:spring-core","5.3.0-RC1","maven"))
+#     # print(nvd_handler.handle("5.3.0-RC1", "org.springframework:spring-core", "maven"))
+#     print(nvd_handler.handle("2.14.1", "Log4J", "npm"))
