@@ -55,19 +55,42 @@ class NpmParser(DependencyParser):
 
         os.remove(json_output_file)
         return dependencies_json
+
+    def get_flat_dependency_set(self, dep_json):
+        result = set()
+
+        def traverse_dependencies(dependencies, is_direct_dependency):
+            for package_name, package_info in dependencies.items():
+                if 'version' in package_info:
+                    package_version = package_info['version']
+                    package_entry = (package_name, package_version, is_direct_dependency)
+                    result.add(package_entry)
+
+                if 'dependencies' in package_info:
+                    traverse_dependencies(package_info['dependencies'], False)
+
+        if 'dependencies' in dep_json:
+            traverse_dependencies(dep_json['dependencies'], True)
+
+        return result
     
-    def get_flat_dependency_set(self, dependencies_json):
-        dependency_set = set()
-        stack = [{"name": key, "version": value.get("version", "unknown"), "dependencies": value.get("dependencies", {})}
-                for key, value in dependencies_json.get("dependencies", {}).items()]
+    def find_paths_in_tree(self, dependency_tree, package_name, package_version, path=""):
+        results = []
+        # Initialize path with the root package name if it's the first call
+        if not path:
+            current_path = dependency_tree['name']
+        else:
+            current_path = path
 
-        while stack:
-            dependency = stack.pop()
-            dependency_set.add((dependency["name"], dependency["version"]))
+        # Check if the current node is the target package with correct version
+        if current_path.split('->')[-1].strip() == package_name and dependency_tree.get('version', '') == package_version:
+            results.append(current_path)
 
-            stack.extend([
-                {"name": key, "version": value.get("version", "unknown"), "dependencies": value.get("dependencies", {})}
-                for key, value in dependency["dependencies"].items()
-            ])
+        # Recursively search in children if they exist
+        if 'dependencies' in dependency_tree:
+            for child_name, child_data in dependency_tree['dependencies'].items():
+                # Build the new path including this child's name
+                new_path = current_path + " -> " + child_name
+                results.extend(self.find_paths_in_tree(child_data, package_name, package_version, new_path))
 
-        return dependency_set
+        return results

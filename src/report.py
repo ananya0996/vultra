@@ -19,7 +19,6 @@ def generate_html_report(json_data, output_html="vulnerability_report.html"):
         for path in paths:
             is_transitive = path is not None
             
-            # ✅ **Fix: Apply light color to parent packages only**
             if path:
                 path_parts = path.split(' > ')
                 formatted_path = ' > '.join(
