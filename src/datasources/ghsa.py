@@ -10,7 +10,7 @@ class GHSAHandler(BaseDataSource):
 
     url = "https://api.github.com/graphql"
     
-    token_env_var = "GITHUB_PAT"
+    token_env_var = "GITHUB_ACCESS_TOKEN"
 
     headers = {
         "Authorization": "Bearer ",
