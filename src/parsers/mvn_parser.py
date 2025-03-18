@@ -26,8 +26,7 @@ class MvnParser(DependencyParser):
                 ],
                 cwd=project_dir,
                 capture_output=True,
-                text=True,
-                shell=True
+                text=True
             )
 
             if result.returncode == 0:

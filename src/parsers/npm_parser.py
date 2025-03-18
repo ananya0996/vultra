@@ -34,7 +34,6 @@ class NpmParser(DependencyParser):
                 ['npm', 'list', '--all', '--json'],
                 capture_output=True,
                 text=True,
-                shell=True,
                 cwd=project_dir
             )
 
