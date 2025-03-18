@@ -45,7 +45,6 @@ def main():
 
     dependency_tree = parser.get_dependency_tree(args["file"])
     unique_dependencies = parser.get_flat_dependency_set(dependency_tree)
-    print("unique ones ", unique_dependencies)
 
     if not unique_dependencies:
         print("ERROR: No dependencies found or error in parsing.")
