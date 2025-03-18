@@ -7,9 +7,6 @@ import zipfile
 import io
 from bs4 import BeautifulSoup
 
-# -------------------- GitHub API Setup & Repo Collection (Code 1) --------------------
-
-# Read GitHub token from the environment variable.
 ACCESS_TOKEN = os.environ.get("GITHUB_ACCESS_TOKEN", "")
 headers = {'Authorization': f'token {ACCESS_TOKEN}'} if ACCESS_TOKEN else {}
 
@@ -29,7 +26,6 @@ def search_repos(query, page=1, per_page=100):
     return response.json().get('items', [])
 
 def repo_has_file_with_extension(repo, extension):
-    # Use the repository's default branch (commonly main or master)
     default_branch = repo.get("default_branch", "main")
     url = f'https://api.github.com/repos/{repo["full_name"]}/contents'
     response = requests.get(url, headers=headers, params={"ref": default_branch})
@@ -56,16 +52,14 @@ def collect_repos(query, extension, max_repos):
                 if len(repos_list) >= max_repos:
                     break
         page += 1
-        time.sleep(1)  # Sleep to avoid rate limiting
+        time.sleep(1)
     return repos_list
-
-# -------------------- Repository Processing Functions (Code 2) --------------------
 
 def parse_github_url(url):
     """
     Extracts the owner and repository name from a GitHub URL.
     """
-    url = url.split("#")[0].strip()  # Remove any fragment identifiers
+    url = url.split("#")[0].strip()
     pattern = r"github\.com/([^/]+)/([^/]+)"
     match = re.search(pattern, url)
     if match:
@@ -75,33 +69,23 @@ def parse_github_url(url):
     return None, None
 
 def download_maven_project(owner, repo, project_folder):
-    """
-    Detects if the repository is a Maven project (via a pom.xml file) and, if so, downloads
-    the entire repository as a ZIP file, extracting it into the given project_folder.
-    """
     for branch in ["master", "main"]:
         raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/pom.xml"
         r = requests.get(raw_url)
         if r.status_code == 200 and r.text.strip():
-            print(f"Detected Maven project for {owner}/{repo} on branch {branch}")
+            print(f"Detected Maven project for {owner}/{repo} (branch: {branch})")
             zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
             r_zip = requests.get(zip_url)
             if r_zip.status_code == 200:
                 with zipfile.ZipFile(io.BytesIO(r_zip.content)) as z:
                     z.extractall(project_folder)
-                print(f"Downloaded full Maven project for {owner}/{repo} from branch {branch}")
+                print(f"Downloaded full Maven project for {owner}/{repo} (branch: {branch})")
                 return True
             else:
-                print(f"Failed to download ZIP for {owner}/{repo} from branch {branch}")
+                print(f"Failed to download ZIP for {owner}/{repo} (branch: {branch})")
     return False
 
 def download_js_project(owner, repo, project_folder):
-    """
-    Attempts to download a dependency JSON file for a JavaScript project.
-    It first tries to download 'package.json'. If that fails, it scrapes the repository's file list
-    for any JSON file (ignoring package-lock.json) and downloads it as package.json.
-    """
-    # Try direct download of package.json
     for branch in ["master", "main"]:
         raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/package.json"
         r = requests.get(raw_url)
@@ -111,8 +95,7 @@ def download_js_project(owner, repo, project_folder):
                 f.write(r.text)
             print(f"Downloaded package.json from {owner}/{repo} (branch: {branch})")
             return True
-
-    # If not found, scrape for any JSON file (excluding package-lock.json)
+            
     for branch in ["master", "main"]:
         tree_url = f"https://github.com/{owner}/{repo}/tree/{branch}"
         r_page = requests.get(tree_url)
@@ -135,41 +118,32 @@ def download_js_project(owner, repo, project_folder):
                         return True
     return False
 
-# -------------------- Main Script --------------------
-
 def main():
-    # Collect GitHub repositories using the GitHub API (Code 1)
     print("Collecting top 50 npm projects with a .json file...")
     js_repos = collect_repos('topic:JavaScript language:JavaScript', '.json', 50)
     print("\nCollecting top 50 maven projects with a .xml file...")
     java_repos = collect_repos('topic:Java language:Java', '.xml', 50)
 
-    # Combine the repository links and remove duplicates
     all_links = list(set(js_repos + java_repos))
     print(f"\nTotal unique GitHub project links collected: {len(all_links)}")
 
-    # Create a fresh base folder named 'dep-folder'
     base_folder = "dep-folder"
     if os.path.exists(base_folder):
         shutil.rmtree(base_folder)
     os.makedirs(base_folder, exist_ok=True)
 
-    # Process each repository link
     for link in all_links:
         owner, repo = parse_github_url(link)
         if not owner or not repo:
             print(f"Could not parse URL: {link}")
             continue
         
-        # Create an individual folder for the project
         project_folder = os.path.join(base_folder, repo)
         os.makedirs(project_folder, exist_ok=True)
         
-        # Attempt to process as a Maven project
         if download_maven_project(owner, repo, project_folder):
-            continue  # Maven project downloaded; skip further processing
+            continue
         
-        # Otherwise, attempt to process as a JavaScript (npm) project
         if download_js_project(owner, repo, project_folder):
             continue
         
