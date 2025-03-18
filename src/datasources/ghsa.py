@@ -5,8 +5,7 @@ import semver
 import sys
 import json
 
-from datasource import BaseDataSource
-
+from datasources.datasource import BaseDataSource
 class GHSAHandler(BaseDataSource):
 
     url = "https://api.github.com/graphql"
@@ -274,4 +273,24 @@ class GHSAHandler(BaseDataSource):
         
         # Versions are equal
         return 0
+
+if __name__ == "__main__":
+    ghsa_handler = GHSAHandler()
+
+    # Test cases
+    test_cases = [
+        ("org.xmlunit.xmlunit-core 2.9.1", "4.3.0.RELEASE", "mvn"),
+        ("org.apache.struts:struts2-core", "2.3.30", "mvn")
+    ]
+
+    for package, version, ecosystem in test_cases:
+        print(f"\nChecking vulnerabilities for {package} {version} in {ecosystem} ecosystem...")
+        vulnerabilities = ghsa_handler.handle(package, version, ecosystem)
+
+        if vulnerabilities:
+            print("Vulnerabilities found:")
+            ghsa_handler.print_json_result(vulnerabilities)
+        else:
+            print("No vulnerabilities found.")
+
 
