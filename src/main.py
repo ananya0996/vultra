@@ -117,8 +117,17 @@ def main(args = None):
         "direct_vulnerabilities": direct_vulnerabilities,
         "transitive_vulnerabilities": transitive_vulnerabilities,
         "vuln_type_counts": dict(vuln_type_counts),  
-        "vulnerabilities_output_path": output_path
     }
+
+    # Print final counts
+    print(f"Direct Dependencies: {direct_dependencies}, Transitive Dependencies: {transitive_dependencies}")
+    print(f"Direct Vuln: {direct_vulnerabilities}, Transitive Vuln: {transitive_vulnerabilities}")
+    print("\nFrequency of Unique Vulnerability Types:")
+    for vuln_type, count in vuln_type_counts.items():
+        print(f"{vuln_type}: {count}")
+
+    # Uncomment this line if you want to generate the HTML report directly
+    # generate_html_report(vulnerabilities_list)
 
     # Return the final JSON object
     return final_result
