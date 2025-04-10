@@ -1,0 +1,11 @@
+[project]
+name = "vultra"
+version = "0.1"
+description = "A vulnerability scanner for your project's dependencies."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4==4.13.3",
+    "packaging==24.2",
+    "requests==2.32.3",
+]
