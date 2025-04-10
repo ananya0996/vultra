@@ -27,7 +27,7 @@ On Windows, run:
 
 3. Install requirements:
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 4. Configure GitHub Access Token (required)
