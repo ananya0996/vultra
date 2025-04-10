@@ -1,5 +1,11 @@
-# vultra
-A vulnerability scanning tool built for the ECS 260 Software Engineering course at UC Davis (Winter 2025).
+# Vultra
+Vultra is a vulnerability aggregator that checks your project’s dependencies against known vulnerability databases. It then reports key information—such as vulnerability type, severity, and the patched version, if available.
+
+Currently, Vultra supports the following dependency management frameworks:
+- Maven (mvn)
+- Node Package Manager (npm)
+
+Vultra was built for the ECS 260 Software Engineering course at UC Davis (Winter Quarter 2025).
 
 ## Dependencies
 On Linux / WSL, run:
